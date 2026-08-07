@@ -14,7 +14,7 @@ Planner Agent 使用 Next.js 作为应用层，Prisma 连接 PostgreSQL。生产
 2. 选择区域（建议与 Vercel 区域接近），设置数据库密码并妥善保存。
 3. 创建后进入 Project Settings -> Database，复制连接信息：
    - Transaction pooler：端口 `6543`，用于 `DATABASE_URL`
-   - Direct connection：端口 `5432`，用于 `DIRECT_URL`
+   - Session pooler：端口 `5432`（带 `?pgbouncer=true`），用于 `DIRECT_URL`；新项目直连是 IPv6-only，Vercel 无法访问
 4. 本项目使用 Prisma Migrate，首次部署会自动创建表，不需要手工建表。
 
 ## 3. 配置 Vercel 环境变量
@@ -24,7 +24,7 @@ Planner Agent 使用 Next.js 作为应用层，Prisma 连接 PostgreSQL。生产
 | 变量 | 示例 / 说明 |
 | --- | --- |
 | `DATABASE_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`，事务连接池 |
-| `DIRECT_URL` | `postgresql://postgres.<project-ref>:<<password>>@aws-0-<region>.pooler.supabase.com:5432/postgres`，迁移直连 |
+| `DIRECT_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?pgbouncer=true`，迁移直连 |
 | `APP_BASE_URL` | `https://<your-project>.vercel.app` |
 | `SESSION_JWT_SECRET` | 32 字节随机值，必填 |
 | `SESSION_COOKIE_NAME` | `planner_session` |
@@ -100,7 +100,7 @@ npm run dev
 
 ```powershell
 $env:DATABASE_URL="<supabase transaction pooler>"
-$env:DIRECT_URL="<supabase direct connection>"
+$env:DIRECT_URL="<supabase session pooler>"
 npx prisma db seed
 ```
 
@@ -115,7 +115,8 @@ npx prisma db seed
 ## 8. 常见问题
 
 - 构建失败提示 `DATABASE_URL` 找不到：确认 Vercel 环境变量已保存，并重新 Deploy。
-- 迁移失败：确认 `DIRECT_URL` 是 Supabase 的直连地址（不是 pooler），数据库密码正确。
+- 迁移失败：确认 `DIRECT_URL` 使用 Session pooler（5432 + `?pgbouncer=true`），数据库密码正确。
+- 报错 `P1001 Can't reach database server` 且地址是 `db.<project-ref>.supabase.co:5432`：这是 IPv6-only 直连，Vercel 无法访问；把 `DIRECT_URL` 改为 Session pooler 地址。
 - 登录后立即退出：确认 `SESSION_JWT_SECRET` 已设置为随机密钥，且 Production / Preview 环境一致。
 - 数据库连接过多：确认 `DATABASE_URL` 使用 transaction pooler，而不是直连。
 
