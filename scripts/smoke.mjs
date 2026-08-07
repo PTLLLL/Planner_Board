@@ -48,6 +48,8 @@ function assert(condition, message) {
 async function main() {
   const email = `smoke-${Date.now()}@planner.local`;
   const password = "Test1234!";
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const register = await request("/api/auth/register", {
     method: "POST",
@@ -68,7 +70,7 @@ async function main() {
     method: "POST",
     json: {
       title: "Smoke 今日任务",
-      dateKey: "2026-08-06",
+      dateKey: todayKey,
       priority: "high",
       estimateMinutes: 45,
       goalId: goal.body.data.id,
