@@ -23,8 +23,8 @@ Planner Agent 使用 Next.js 作为应用层，Prisma 连接 PostgreSQL。生产
 
 | 变量 | 示例 / 说明 |
 | --- | --- |
-| `DATABASE_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`，事务连接池 |
-| `DIRECT_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?pgbouncer=true`，迁移直连 |
+| `DATABASE_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require`，事务连接池 |
+| `DIRECT_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?pgbouncer=true&sslmode=require`，迁移直连 |
 | `APP_BASE_URL` | `https://<your-project>.vercel.app` |
 | `SESSION_JWT_SECRET` | 32 字节随机值，必填 |
 | `SESSION_COOKIE_NAME` | `planner_session` |
