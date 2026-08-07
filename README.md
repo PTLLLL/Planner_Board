@@ -278,8 +278,10 @@ docker compose up -d
 | `LLM_BASE_URL` | 空 | 自定义兼容接口地址 |
 | `LLM_API_KEY` | 空 | 模型 API Key |
 | `LLM_MODEL_NAME` | `planner-agent-mock` | 模型名称 |
-| `LLM_TIMEOUT_MS` | `45000` | 模型调用超时 |
-| `LLM_MAX_RETRY` | `1` | 模型输出重试次数 |
+| `LLM_MAX_TOKENS` | `12000` | 单次输出 token 上限；推理模型建议不低于 12000 |
+| `LLM_TIMEOUT_MS` | `180000` | 模型调用超时（毫秒） |
+| `LLM_RETRY_BACKOFF_MS` | `30000` | 模型失败重试前的等待时间（毫秒） |
+| `LLM_MAX_RETRY` | `3` | 最大模型调用尝试次数（1-3） |
 | `ANALYTICS_ENABLED` | `true` | 是否写入埋点事件 |
 | `ANALYTICS_RETENTION_DAYS` | `180` | 埋点保留天数 |
 | `RATE_LIMIT_ENABLED` | `true` | 是否启用限流 |
@@ -298,7 +300,11 @@ LLM_PROVIDER=modelscope
 LLM_BASE_URL=https://api-inference.modelscope.cn/v1
 LLM_API_KEY=sk-xxx
 LLM_MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
+LLM_MAX_TOKENS=12000
+LLM_TIMEOUT_MS=180000
 ```
+
+推理类模型（如 `ZhipuAI/GLM-5.2`）会先输出 `reasoning_content` 再输出最终 JSON。如果 `LLM_MAX_TOKENS` 不足，`content` 可能为空并触发“模型输出达到长度限制”，程序会自动改用更大上限重试；推荐保留 `12000` 或更高。部分平台（如 ModelScope 免费额度）在连续请求时可能返回空占位响应，程序会识别为“模型服务繁忙”并按 `LLM_RETRY_BACKOFF_MS` 退避重试。
 
 内置默认接口：
 
@@ -399,6 +405,10 @@ npx next build
 | `LLM_PROVIDER` | `openai` / `dashscope` / `deepseek` / `modelscope` | 模型服务商 |
 | `LLM_API_KEY` | `sk-...` | 服务商 API Key |
 | `LLM_MODEL_NAME` | `gpt-4o-mini` 等 | 模型名称 |
+| `LLM_MAX_TOKENS` | `12000` | 单次输出 token 上限 |
+| `LLM_TIMEOUT_MS` | `180000` | 模型调用超时；需小于 Vercel 函数超时 |
+
+Agent 接口已声明 `maxDuration = 300` 秒。Vercel 不同套餐的函数超时上限不同，若模型响应耗时较长，请确认当前计划允许的时长，并在 Vercel 中配置对应的 `LLM_TIMEOUT_MS`。
 
 配置完成后在 Vercel 重新 Deploy。
 
@@ -409,6 +419,8 @@ npx next build
 - Vercel 报 `EBADPLATFORM @embedded-postgres/windows-x64`：不要把 Windows 专用二进制加入 `devDependencies`，`embedded-postgres` 会通过 `optionalDependencies` 自动选择平台包。
 - Vercel 报 `P1001` 且地址是 `db.<project-ref>.supabase.co:5432`：这是 Supabase IPv6-only 直连，Vercel 无法访问；`DIRECT_URL` 应使用 Session pooler（5432 + `?pgbouncer=true`）。
 - Agent 没有真实 AI 能力：检查 `LLM_PROVIDER`、`LLM_API_KEY`、`LLM_MODEL_NAME` 是否配置并已重新部署。`LLM_API_KEY` 不能填写接口地址，`LLM_MODEL_NAME` 不能是 `planner-agent-mock`。
+- Agent 返回“模型响应为空”或“模型输出达到长度限制”：推理模型会先消耗 `reasoning_content` 预算，请确认 `LLM_MAX_TOKENS` 不低于 12000，且 `LLM_TIMEOUT_MS` 足够覆盖完整推理时间。
+- Agent 返回“模型服务繁忙”：通常是模型平台限流，程序会自动按退避策略重试；请勿连续点击提交，避免触发平台并发限制。
 
 ## 开源与贡献
 

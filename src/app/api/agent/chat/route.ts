@@ -5,6 +5,9 @@ import { agentChatSchema } from "@/lib/schemas";
 import { runAgent } from "@/lib/agent/orchestrator.service";
 import { rateLimitCheck } from "@/lib/services/rate-limit.service";
 
+// Real LLM calls can take 1-3 minutes; Vercel reads this as the function timeout.
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request);

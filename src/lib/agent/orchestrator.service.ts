@@ -83,7 +83,17 @@ export async function runAgentWithContext(
   let failureReason: string | null = null;
   let outputParsed: unknown = null;
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const configuredRetries = Number(process.env.LLM_MAX_RETRY || 2);
+  const maxAttempts = Number.isFinite(configuredRetries)
+    ? Math.min(Math.max(Math.floor(configuredRetries), 1), 3)
+    : 2;
+  const configuredBackoff = Number(process.env.LLM_RETRY_BACKOFF_MS || 30000);
+  const backoffMs =
+    Number.isFinite(configuredBackoff) && configuredBackoff > 0
+      ? Math.min(Math.round(configuredBackoff), 60000)
+      : 30000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const response = await generateAgentCompletion({
         prompt,
@@ -100,7 +110,9 @@ export async function runAgentWithContext(
       failureReason = validation.failureReason ?? "AGENT_OUTPUT_INVALID";
     } catch (error) {
       failureReason = error instanceof AppError ? error.message : "模型输出无效";
-      if (attempt === 1) break;
+      if (attempt >= maxAttempts - 1) break;
+      const delay = Math.min(backoffMs * 2 ** attempt, 60000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 

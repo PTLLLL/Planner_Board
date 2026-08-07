@@ -13,9 +13,11 @@ import {
   Inbox,
   ListTodo,
   ShieldCheck,
+  Loader2,
   Sparkles,
   Target,
   TrendingUp,
+  XCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -78,6 +80,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [requestText, setRequestText] = useState("");
+  const [agentRunning, setAgentRunning] = useState(false);
+  const [agentError, setAgentError] = useState("");
 
   const today = useQuery({
     queryKey: ["dashboard", "today"],
@@ -103,13 +107,20 @@ export default function DashboardPage() {
       toast.error("请输入 Agent 请求");
       return;
     }
+    if (agentRunning) return;
+    setAgentRunning(true);
+    setAgentError("");
     try {
       await postJson("/api/agent/chat", { requestText: text, trigger });
       toast.success("Agent 建议已生成");
       await queryClient.invalidateQueries();
       router.push("/agent/inbox");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Agent 请求失败");
+      const message = error instanceof Error ? error.message : "Agent 请求失败";
+      setAgentError(message);
+      toast.error(message);
+    } finally {
+      setAgentRunning(false);
     }
   }
 
@@ -130,9 +141,13 @@ export default function DashboardPage() {
           <p className="page-subtitle">今日、本周、目标与 Agent 建议的实时状态</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => submitAgent("dashboard_plan_today")}>
-            <Sparkles className="h-4 w-4" />
-            帮我安排今天
+          <Button onClick={() => submitAgent("dashboard_plan_today")} disabled={agentRunning}>
+            {agentRunning ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {agentRunning ? "生成中" : "帮我安排今天"}
           </Button>
           <Button variant="outline" asChild>
             <Link href="/tasks/daily">
@@ -158,26 +173,45 @@ export default function DashboardPage() {
               创建、修改、移动、拆分任务，或拆解目标。建议生成后会在收件箱中等待确认。
             </p>
           </div>
-          <div className="flex w-full gap-2 lg:max-w-lg">
-            <Input
-              value={requestText}
-              onChange={(event) => setRequestText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  submitAgent("agent_input");
-                }
-              }}
-              placeholder="例如：明天上午整理简历项目经历"
-              className="h-11 border-white/50 bg-white/95 text-slate-900 shadow-lg backdrop-blur placeholder:text-slate-400"
-            />
-            <Button
-              onClick={() => submitAgent("agent_input")}
-              disabled={!requestText.trim()}
-              className="h-11 bg-white px-5 text-blue-700 shadow-lg hover:bg-blue-50"
-            >
-              提交
-            </Button>
+          <div className="flex w-full flex-col gap-3 lg:max-w-lg">
+            <div className="flex w-full gap-2">
+              <Input
+                value={requestText}
+                onChange={(event) => setRequestText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitAgent("agent_input");
+                  }
+                }}
+                disabled={agentRunning}
+                placeholder="例如：明天上午整理简历项目经历"
+                className="h-11 border-white/50 bg-white/95 text-slate-900 shadow-lg backdrop-blur placeholder:text-slate-400"
+              />
+              <Button
+                onClick={() => submitAgent("agent_input")}
+                disabled={agentRunning || !requestText.trim()}
+                className="h-11 bg-white px-5 text-blue-700 shadow-lg hover:bg-blue-50"
+              >
+                {agentRunning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                {agentRunning ? "生成中" : "提交"}
+              </Button>
+            </div>
+            <div className="min-h-6">
+              {agentRunning ? (
+                <p className="flex items-center gap-2 text-sm text-white/90">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  正在整理上下文并调用模型，生成约需 1-3 分钟
+                </p>
+              ) : agentError ? (
+                <p className="flex items-center gap-2 rounded-md bg-white/15 px-2.5 py-1.5 text-sm text-white">
+                  <XCircle className="h-4 w-4 shrink-0" />
+                  {agentError}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>

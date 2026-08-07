@@ -116,4 +116,98 @@ describe("generateAgentCompletion", () => {
     expect(fallbackBody.response_format).toBeUndefined();
     expect(result.content).toBe("{}");
   });
+
+  it("uses a large token budget and long timeout for real providers", () => {
+    vi.stubEnv("LLM_PROVIDER", "modelscope");
+    vi.stubEnv("LLM_BASE_URL", "https://api-inference.modelscope.cn/v1");
+    vi.stubEnv("LLM_API_KEY", "sk-test");
+    vi.stubEnv("LLM_MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct");
+
+    const config = getLlmConfig();
+    expect(config.maxTokens).toBe(12000);
+    expect(config.timeoutMs).toBe(180000);
+  });
+
+  it("honors LLM_MAX_TOKENS and clamps to the supported range", () => {
+    vi.stubEnv("LLM_PROVIDER", "modelscope");
+    vi.stubEnv("LLM_BASE_URL", "https://api-inference.modelscope.cn/v1");
+    vi.stubEnv("LLM_API_KEY", "sk-test");
+    vi.stubEnv("LLM_MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct");
+    vi.stubEnv("LLM_MAX_TOKENS", "99999");
+
+    expect(getLlmConfig().maxTokens).toBe(16000);
+  });
+
+  it("treats an empty placeholder response as a busy model error", async () => {
+    vi.stubEnv("LLM_PROVIDER", "modelscope");
+    vi.stubEnv("LLM_BASE_URL", "https://api-inference.modelscope.cn/v1");
+    vi.stubEnv("LLM_API_KEY", "sk-test");
+    vi.stubEnv("LLM_MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct");
+
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "", choices: null, usage: { total_tokens: 0 } }), {
+          status: 200,
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateAgentCompletion({
+        prompt: "system prompt",
+        context: {} as never,
+        requestText: "帮我安排今天",
+      }),
+    ).rejects.toThrow(/模型服务繁忙/);
+  });
+
+  it("reports a truncated reasoning response as a length error", async () => {
+    vi.stubEnv("LLM_PROVIDER", "modelscope");
+    vi.stubEnv("LLM_BASE_URL", "https://api-inference.modelscope.cn/v1");
+    vi.stubEnv("LLM_API_KEY", "sk-test");
+    vi.stubEnv("LLM_MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct");
+
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            choices: [{ finish_reason: "length", message: { content: "", reasoning_content: "思考中" } }],
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateAgentCompletion({
+        prompt: "system prompt",
+        context: {} as never,
+        requestText: "帮我安排今天",
+      }),
+    ).rejects.toThrow(/长度限制/);
+  });
+
+  it("uses a larger token budget on retry", async () => {
+    vi.stubEnv("LLM_PROVIDER", "modelscope");
+    vi.stubEnv("LLM_BASE_URL", "https://api-inference.modelscope.cn/v1");
+    vi.stubEnv("LLM_API_KEY", "sk-test");
+    vi.stubEnv("LLM_MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct");
+
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateAgentCompletion({
+      prompt: "system prompt",
+      context: {} as never,
+      requestText: "帮我安排今天",
+      retry: true,
+    });
+
+    expect(result.content).toBe("{}");
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit | undefined)?.body as string);
+    expect(body.max_tokens).toBe(16000);
+  });
 });

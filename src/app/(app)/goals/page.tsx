@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Flag,
+  Loader2,
   Pencil,
   Plus,
   Sparkles,
@@ -44,6 +45,7 @@ export default function GoalsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<GoalItem | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [decomposingId, setDecomposingId] = useState<string | null>(null);
 
   const goals = useQuery({
     queryKey: ["goals", status],
@@ -103,6 +105,8 @@ export default function GoalsPage() {
   }
 
   async function decompose(goal: GoalItem) {
+    if (decomposingId) return;
+    setDecomposingId(goal.id);
     try {
       await postJson("/api/agent/chat", {
         requestText: "帮我拆解这个目标",
@@ -113,6 +117,8 @@ export default function GoalsPage() {
       router.push("/agent/inbox");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "拆解失败");
+    } finally {
+      setDecomposingId(null);
     }
   }
 
@@ -199,9 +205,18 @@ export default function GoalsPage() {
                     <div className="mt-4 flex flex-wrap gap-2">
                       {status === "active" ? (
                         <>
-                          <Button variant="outline" size="sm" onClick={() => decompose(goal)}>
-                            <Sparkles className="h-3.5 w-3.5" />
-                            拆解
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => decompose(goal)}
+                            disabled={decomposingId !== null}
+                          >
+                            {decomposingId === goal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5" />
+                            )}
+                            {decomposingId === goal.id ? "拆解中" : "拆解"}
                           </Button>
                           <Button variant="outline" size="sm" onClick={() => act(goal, "complete")}>
                             <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />
