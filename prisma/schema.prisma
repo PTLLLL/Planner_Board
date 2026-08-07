@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+enum GoalStatus {
+  active
+  completed
+  archived
+}
+
+enum GoalSource {
+  manual
+  imported
+}
+
+enum TaskSource {
+  manual
+  agent
+  imported
+}
+
+enum AgentRunStatus {
+  pending
+  running
+  completed
+  failed
+  cancelled
+}
+
+enum AgentActionStatus {
+  proposed
+  approved
+  rejected
+  expired
+  executing
+  executed
+  failed
+}
+
+enum AgentActionTool {
+  create_task
+  update_task
+  move_task
+  split_task
+}
+
+enum AgentMessageRole {
+  user
+  assistant
+  system
+  tool
+}
+
+enum FeedbackType {
+  accepted
+  rejected
+  edited
+  helpful
+  not_helpful
+  wrong_date
+  wrong_task
+  wrong_priority
+  too_many_tasks
+  unsafe_suggestion
+}
+
+enum EvalCaseCategory {
+  plan_today
+  create_task
+  update_task
+  move_task
+  split_task
+  decompose_goal
+  clarification
+  safety
+}
+
+model User {
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String    @unique @db.VarChar(255)
+  passwordHash     String    @map("password_hash") @db.Text
+  displayName      String?   @map("display_name") @db.VarChar(60)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(6)
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(6)
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+
+  preferences     UserPreference?
+  goals           Goal[]
+  tasks           Task[]
+  agentRuns       AgentRun[]
+  agentActions    AgentAction[]
+  feedbackEvents  FeedbackEvent[]
+  actionLogs      ActionLog[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model UserPreference {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @unique @map("user_id") @db.Uuid
+  timezone            String   @default("Asia/Shanghai") @db.VarChar(80)
+  maxDailyTasks       Int      @default(5) @map("max_daily_tasks")
+  workStartTime       String   @default("09:00") @map("work_start_time") @db.VarChar(5)
+  workEndTime         String   @default("22:00") @map("work_end_time") @db.VarChar(5)
+  preferredFocusTime  String   @default("morning") @map("preferred_focus_time") @db.VarChar(20)
+  requireConfirmation Boolean  @default(true) @map("require_confirmation")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Goal {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @map("user_id") @db.Uuid
+  title       String      @db.VarChar(120)
+  description String?     @db.Text
+  targetDate  DateTime?   @map("target_date") @db.Date
+  status      GoalStatus  @default(active)
+  source      GoalSource  @default(manual)
+  legacyId    String?     @map("legacy_id") @db.VarChar(120)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([userId, status], map: "goals_user_id_status_idx")
+  @@index([legacyId], map: "goals_legacy_id_idx")
+  @@map("goals")
+}
+
+model Task {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  goalId          String?      @map("goal_id") @db.Uuid
+  title           String       @db.VarChar(160)
+  description     String?      @db.Text
+  dateKey         DateTime     @map("date_key") @db.Date
+  startTime       DateTime?    @map("start_time") @db.Time(0)
+  endTime         DateTime?    @map("end_time") @db.Time(0)
+  estimateMinutes Int?         @map("estimate_minutes")
+  priority        Priority     @default(medium)
+  isDone          Boolean      @default(false) @map("is_done")
+  completedAt     DateTime?    @map("completed_at") @db.Timestamptz(6)
+  source          TaskSource   @default(manual)
+  agentActionId   String?      @map("agent_action_id") @db.Uuid
+  legacyId        String?      @map("legacy_id") @db.VarChar(120)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal        Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  agentAction AgentAction? @relation(fields: [agentActionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, dateKey], map: "tasks_user_date_idx")
+  @@index([goalId], map: "tasks_goal_idx")
+  @@index([agentActionId], map: "tasks_agent_action_idx")
+  @@index([legacyId], map: "tasks_legacy_idx")
+  @@map("tasks")
+}
+
+model AgentRun {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  status          AgentRunStatus   @default(pending)
+  requestText     String           @map("request_text") @db.Text
+  contextSnapshot Json             @map("context_snapshot")
+  modelName       String           @map("model_name") @db.VarChar(120)
+  promptVersion   String           @map("prompt_version") @db.VarChar(60)
+  outputRaw       String?          @map("output_raw") @db.Text
+  outputParsed    Json?            @map("output_parsed")
+  failureReason   String?          @map("failure_reason") @db.Text
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(6)
+  latencyMs       Int?             @map("latency_ms")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    AgentMessage[]
+  actions     AgentAction[]
+  evalResults EvalResult[]
+
+  @@index([userId, createdAt], map: "agent_runs_user_created_idx")
+  @@index([status], map: "agent_runs_status_idx")
+  @@map("agent_runs")
+}
+
+model AgentMessage {
+  id         String           @id @default(uuid()) @db.Uuid
+  agentRunId String           @map("agent_run_id") @db.Uuid
+  role       AgentMessageRole
+  content    String           @db.Text
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  agentRun AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([agentRunId], map: "agent_messages_run_idx")
+  @@map("agent_messages")
+}
+
+model AgentAction {
+  id               String             @id @default(uuid()) @db.Uuid
+  agentRunId       String             @map("agent_run_id") @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  tool             AgentActionTool
+  originalArgs     Json               @map("original_args")
+  editedArgs       Json?              @map("edited_args")
+  explanation      String             @db.Text
+  confidence       Float
+  riskLevel        String             @map("risk_level") @db.VarChar(20)
+  status           AgentActionStatus  @default(proposed)
+  resultEntityType String?            @map("result_entity_type") @db.VarChar(40)
+  resultEntityId   String?            @map("result_entity_id") @db.Uuid
+  failureReason    String?            @map("failure_reason") @db.Text
+  expiresAt        DateTime           @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  agentRun       AgentRun        @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks          Task[]
+  logs           ActionLog[]
+  feedbackEvents FeedbackEvent[]
+
+  @@index([agentRunId], map: "agent_actions_run_idx")
+  @@index([userId, status], map: "agent_actions_user_status_idx")
+  @@index([expiresAt], map: "agent_actions_expires_idx")
+  @@map("agent_actions")
+}
+
+model ActionLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  agentActionId String?   @map("agent_action_id") @db.Uuid
+  entityType    String    @map("entity_type") @db.VarChar(40)
+  entityId      String?   @map("entity_id") @db.Uuid
+  actionType    String    @map("action_type") @db.VarChar(40)
+  beforeState   Json?     @map("before_state")
+  afterState    Json?     @map("after_state")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentAction AgentAction? @relation(fields: [agentActionId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "action_logs_user_idx")
+  @@index([actionType], map: "action_logs_action_idx")
+  @@map("action_logs")
+}
+
+model FeedbackEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @map("user_id") @db.Uuid
+  agentActionId String?        @map("agent_action_id") @db.Uuid
+  feedbackType  FeedbackType   @map("feedback_type")
+  comment       String?        @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentAction AgentAction? @relation(fields: [agentActionId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "feedback_user_idx")
+  @@index([agentActionId], map: "feedback_action_idx")
+  @@map("feedback_events")
+}
+
+model EvalCase {
+  id                 String             @id @default(uuid()) @db.Uuid
+  name               String             @db.VarChar(160)
+  category           EvalCaseCategory
+  userQuery          String             @map("user_query") @db.Text
+  contextSnapshot    Json               @map("context_snapshot")
+  expectedTools      String[]           @map("expected_tools")
+  expectedConstraints Json              @map("expected_constraints")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  results EvalResult[]
+
+  @@map("eval_cases")
+}
+
+model EvalResult {
+  id                  String    @id @default(uuid()) @db.Uuid
+  evalCaseId          String    @map("eval_case_id") @db.Uuid
+  agentRunId          String    @map("agent_run_id") @db.Uuid
+  passed              Boolean
+  score               Float
+  toolCallAccuracy    Float     @map("tool_call_accuracy")
+  dateParsingAccuracy Float     @map("date_parsing_accuracy")
+  planQualityScore    Float     @map("plan_quality_score")
+  failureCategory     String?   @map("failure_category") @db.VarChar(60)
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evalCase EvalCase  @relation(fields: [evalCaseId], references: [id], onDelete: Cascade)
+  agentRun AgentRun  @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([evalCaseId], map: "eval_results_case_idx")
+  @@index([agentRunId], map: "eval_results_run_idx")
+  @@map("eval_results")
+}
+
+model AnalyticsEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  eventName       String   @map("event_name") @db.VarChar(80)
+  userId          String?  @map("user_id") @db.Uuid
+  sessionId       String   @map("session_id") @db.VarChar(120)
+  pageRoute       String?  @map("page_route") @db.VarChar(160)
+  requestId       String?  @map("request_id") @db.VarChar(120)
+  clientTimestamp DateTime @map("client_timestamp") @db.Timestamptz(6)
+  serverTimestamp DateTime @default(now()) @map("server_timestamp") @db.Timestamptz(6)
+  appVersion      String   @map("app_version") @db.VarChar(40)
+  schemaVersion   String   @default("1.0") @map("schema_version") @db.VarChar(10)
+  properties      Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventName, createdAt], map: "analytics_events_name_created_idx")
+  @@index([userId, createdAt], map: "analytics_events_user_created_idx")
+  @@index([sessionId], map: "analytics_events_session_idx")
+  @@map("analytics_events")
+}
