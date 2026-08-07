@@ -19,20 +19,24 @@ import {
   TrendingUp,
   XCircle,
 } from "lucide-react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { apiFetch, postJson } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+const WeeklyLoadChart = dynamic(
+  () =>
+    import("@/components/dashboard-weekly-chart").then(
+      (module) => module.WeeklyLoadChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64" />,
+  },
+);
 
 interface TodayOverview {
   date: string;
@@ -401,38 +405,7 @@ export default function DashboardPage() {
               <Skeleton className="h-64" />
             ) : weekly.data ? (
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fill: "#64748b", fontSize: 11 }}
-                      axisLine={{ stroke: "#e2e8f0" }}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fill: "#94a3b8", fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "rgba(59, 130, 246, 0.06)" }}
-                      contentStyle={{
-                        borderRadius: 8,
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Bar
-                      dataKey="taskCount"
-                      name="任务数"
-                      fill="hsl(221 83% 53%)"
-                      radius={[5, 5, 0, 0]}
-                      barSize={22}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                <WeeklyLoadChart data={chartData} />
               </div>
             ) : null}
           </div>

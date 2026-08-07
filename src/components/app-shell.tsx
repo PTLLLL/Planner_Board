@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
   CheckSquare,
@@ -37,10 +37,12 @@ const secondaryNav = [
 ];
 
 const mobileNav = [...nav, ...secondaryNav];
+const appRoutes = [...nav, ...secondaryNav].map((item) => item.href);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [navigating, setNavigating] = useState(false);
   const navTimer = useRef<number | null>(null);
 
@@ -54,6 +56,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+
+  useEffect(() => {
+    for (const href of appRoutes) {
+      router.prefetch(href);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const dashboardQueries = [
+        { queryKey: ["dashboard", "today"], url: "/api/dashboard/today" },
+        { queryKey: ["dashboard", "weekly"], url: "/api/dashboard/weekly-load" },
+        { queryKey: ["dashboard", "goals"], url: "/api/dashboard/goal-progress" },
+        { queryKey: ["dashboard", "agent"], url: "/api/dashboard/agent-summary" },
+      ] as const;
+      for (const query of dashboardQueries) {
+        void queryClient.prefetchQuery({
+          queryKey: query.queryKey,
+          queryFn: () => apiFetch(query.url),
+          staleTime: 30_000,
+        });
+      }
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [queryClient]);
 
   function handleNavClick(href: string) {
     if (href === pathname) return;
