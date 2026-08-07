@@ -13,3 +13,7 @@ prisma/dev.db-journal
 .turbo
 .db.pid
 .next.pid
+.DS_Store
+Thumbs.db
+.env.*
+!.env.example

@@ -26,6 +26,7 @@ Planner Agent 是一个目标驱动的可控 AI 日程规划 Agent。用户可�
 - [部署](#部署)
 - [生产环境状态](#生产环境状态)
 - [常见问题](#常见问题)
+- [开源与贡献](#开源与贡献)
 - [项目文档](#项目文档)
 - [版本记录](#版本记录)
 
@@ -406,6 +407,14 @@ npx next build
 - Vercel 报 `EBADPLATFORM @embedded-postgres/windows-x64`：不要把 Windows 专用二进制加入 `devDependencies`，`embedded-postgres` 会通过 `optionalDependencies` 自动选择平台包。
 - Vercel 报 `P1001` 且地址是 `db.<project-ref>.supabase.co:5432`：这是 Supabase IPv6-only 直连，Vercel 无法访问；`DIRECT_URL` 应使用 Session pooler（5432 + `?pgbouncer=true`）。
 - Agent 没有真实 AI 能力：检查 `LLM_PROVIDER`、`LLM_API_KEY`、`LLM_MODEL_NAME` 是否配置并已重新部署。
+
+## 开源与贡献
+
+本项目以 MIT License 开源。贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，发现安全问题请按 [SECURITY.md](SECURITY.md) 私密上报。
+
+- [参与贡献](CONTRIBUTING.md)
+- [安全说明](SECURITY.md)
+- [开源协议](LICENSE)
 
 ## 项目文档
 
