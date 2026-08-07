@@ -8,14 +8,131 @@ export interface LlmResponse {
   promptVersion: string;
 }
 
-export function getLlmConfig() {
-  return {
-    provider: process.env.LLM_PROVIDER || "mock",
-    modelName: process.env.LLM_MODEL_NAME || "planner-agent-mock",
-    baseUrl: process.env.LLM_BASE_URL || "",
-    apiKey: process.env.LLM_API_KEY || "",
-    timeoutMs: Number(process.env.LLM_TIMEOUT_MS || 45000),
-  };
+export interface LlmConfig {
+  provider: string;
+  modelName: string;
+  baseUrl: string;
+  apiKey: string;
+  timeoutMs: number;
+  endpointUrl: string;
+}
+
+interface CompletionResult {
+  ok: boolean;
+  status: number;
+  content: string | null;
+  errorText: string;
+}
+
+const MOCK_MODEL_NAME = "planner-agent-mock";
+const SUPPORTED_PROVIDERS = ["openai", "dashscope", "deepseek", "modelscope"];
+
+export function getLlmConfig(): LlmConfig {
+  const provider = (process.env.LLM_PROVIDER || "mock").trim().toLowerCase();
+  const modelName = (process.env.LLM_MODEL_NAME || MOCK_MODEL_NAME).trim();
+  const baseUrl = (process.env.LLM_BASE_URL || "").trim();
+  const apiKey = (process.env.LLM_API_KEY || "").trim();
+  const rawTimeout = Number(process.env.LLM_TIMEOUT_MS || 45000);
+  const timeoutMs = Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 45000;
+
+  if (provider === "mock") {
+    return {
+      provider,
+      modelName: modelName || MOCK_MODEL_NAME,
+      baseUrl,
+      apiKey: "",
+      timeoutMs,
+      endpointUrl: "",
+    };
+  }
+
+  if (!baseUrl && !SUPPORTED_PROVIDERS.includes(provider)) {
+    throw new AppError(
+      "LLM_CONFIG_ERROR",
+      `不支持的 LLM_PROVIDER：${provider}。请使用 mock、openai、dashscope、deepseek、modelscope，或配置 LLM_BASE_URL`,
+      500,
+    );
+  }
+
+  if (!apiKey) {
+    throw new AppError(
+      "LLM_CONFIG_ERROR",
+      `已启用 ${provider}，但未配置 LLM_API_KEY，请检查 .env`,
+      500,
+    );
+  }
+  if (/^https?:\/\//i.test(apiKey) || apiKey.includes("/")) {
+    throw new AppError(
+      "LLM_CONFIG_ERROR",
+      "LLM_API_KEY 格式不正确，请填写真实 API Key，不要填写接口地址",
+      500,
+    );
+  }
+  if (!modelName || modelName === MOCK_MODEL_NAME) {
+    throw new AppError(
+      "LLM_CONFIG_ERROR",
+      `已启用 ${provider}，但 LLM_MODEL_NAME 不能为空或仍为 mock 占位值，请填写真实模型 ID`,
+      500,
+    );
+  }
+
+  const endpointUrl = resolveEndpointUrl(provider, baseUrl);
+  if (!/^https?:\/\//i.test(endpointUrl)) {
+    throw new AppError("LLM_CONFIG_ERROR", "LLM_BASE_URL 必须是 http(s) 地址", 500);
+  }
+
+  return { provider, modelName, baseUrl, apiKey, timeoutMs, endpointUrl };
+}
+
+function resolveEndpointUrl(provider: string, baseUrl: string): string {
+  const raw = baseUrl || defaultBaseUrl(provider);
+  const trimmed = raw.replace(/\/+$/, "");
+  return /\/chat\/completions$/i.test(trimmed)
+    ? trimmed
+    : `${trimmed}/chat/completions`;
+}
+
+function defaultBaseUrl(provider: string): string {
+  if (provider === "dashscope") {
+    return "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+  }
+  if (provider === "deepseek") {
+    return "https://api.deepseek.com/chat/completions";
+  }
+  if (provider === "modelscope") {
+    return "https://api-inference.modelscope.cn/v1/chat/completions";
+  }
+  return "https://api.openai.com/v1/chat/completions";
+}
+
+async function postCompletion(
+  url: string,
+  apiKey: string,
+  body: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<CompletionResult> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  const errorText = await response.text().catch(() => "");
+  let content: string | null = null;
+  if (response.ok) {
+    try {
+      const data = JSON.parse(errorText) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      content = data.choices?.[0]?.message?.content ?? null;
+    } catch {
+      content = null;
+    }
+  }
+  return { ok: response.ok, status: response.status, content, errorText };
 }
 
 export async function generateAgentCompletion(input: {
@@ -25,7 +142,7 @@ export async function generateAgentCompletion(input: {
   retry?: boolean;
 }): Promise<LlmResponse> {
   const config = getLlmConfig();
-  if (config.provider === "mock" || !config.apiKey) {
+  if (config.provider === "mock") {
     const output = mockPlanner(input.context, input.requestText);
     return {
       content: JSON.stringify(output),
@@ -36,8 +153,7 @@ export async function generateAgentCompletion(input: {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
-  const url = config.baseUrl || defaultBaseUrl(config.provider);
-  const body = {
+  const body: Record<string, unknown> = {
     model: config.modelName,
     temperature: 0.2,
     top_p: 0.9,
@@ -58,27 +174,20 @@ export async function generateAgentCompletion(input: {
   };
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new AppError("AGENT_OUTPUT_INVALID", `模型服务返回 ${response.status}`, 502);
+    let result = await postCompletion(config.endpointUrl, config.apiKey, body, controller.signal);
+    if (!result.ok && result.status === 400 && /response_format/i.test(result.errorText)) {
+      const fallbackBody = { ...body };
+      delete fallbackBody.response_format;
+      result = await postCompletion(config.endpointUrl, config.apiKey, fallbackBody, controller.signal);
     }
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
+    if (!result.ok) {
+      throw new AppError("AGENT_OUTPUT_INVALID", `模型服务返回 ${result.status}`, 502);
+    }
+    if (!result.content) {
       throw new AppError("AGENT_OUTPUT_INVALID", "模型响应为空", 502);
     }
     return {
-      content,
+      content: result.content,
       modelName: config.modelName,
       promptVersion: "planner-agent-v1.0.0",
     };
@@ -92,10 +201,4 @@ export async function generateAgentCompletion(input: {
   } finally {
     clearTimeout(timer);
   }
-}
-
-function defaultBaseUrl(provider: string): string {
-  if (provider === "dashscope") return "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-  if (provider === "deepseek") return "https://api.deepseek.com/chat/completions";
-  return "https://api.openai.com/v1/chat/completions";
 }

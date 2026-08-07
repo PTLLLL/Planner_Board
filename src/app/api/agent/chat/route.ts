@@ -12,6 +12,9 @@ export async function POST(request: NextRequest) {
     if (!allowed) throw new AppError("RATE_LIMITED", "Agent 请求过于频繁，请稍后再试", 429);
     const body = parseWithSchema(agentChatSchema, await readJson(request));
     const run = await runAgent(user.id, body);
+    if (run.status === "failed") {
+      throw new AppError("AGENT_RUN_FAILED", `Agent 运行失败：${run.failureReason || "模型输出无效"}`, 502, { runId: run.id });
+    }
     return ok(run, 201);
   } catch (error) {
     return fail(error);

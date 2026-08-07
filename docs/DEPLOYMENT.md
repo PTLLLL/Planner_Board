@@ -33,8 +33,8 @@ Planner Agent 使用 Next.js 作为应用层，Prisma 连接 PostgreSQL。生产
 | `RATE_LIMIT_ENABLED` | `true` |
 | `LOG_LEVEL` | `info` |
 | `REDIS_URL` | 可选；为空时使用内存限流 |
-| `LLM_PROVIDER` | `mock`、`openai`、`dashscope`、`deepseek` |
-| `LLM_API_KEY` | 可选；未配置时使用内置 Mock |
+| `LLM_PROVIDER` | `mock`、`openai`、`dashscope`、`deepseek`、`modelscope` |
+| `LLM_API_KEY` | 可选；未配置时使用内置 Mock，设置非 mock Provider 后必须填写 |
 | `LLM_MODEL_NAME` | 可选，默认 `planner-agent-mock` |
 
 生成 `SESSION_JWT_SECRET`：

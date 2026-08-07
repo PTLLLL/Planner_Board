@@ -274,7 +274,7 @@ docker compose up -d
 | `SESSION_COOKIE_NAME` | `planner_session` | 会话 Cookie 名称 |
 | `SESSION_MAX_AGE_DAYS` | `7` | 会话有效期 |
 | `REDIS_URL` | 空 | Redis 连接；为空时使用内存限流 |
-| `LLM_PROVIDER` | `mock` | `mock` / `openai` / `dashscope` / `deepseek` |
+| `LLM_PROVIDER` | `mock` | `mock` / `openai` / `dashscope` / `deepseek` / `modelscope` |
 | `LLM_BASE_URL` | 空 | 自定义兼容接口地址 |
 | `LLM_API_KEY` | 空 | 模型 API Key |
 | `LLM_MODEL_NAME` | `planner-agent-mock` | 模型名称 |
@@ -289,14 +289,15 @@ docker compose up -d
 
 ## LLM 配置
 
-未配置 `LLM_API_KEY` 时，无论 `LLM_PROVIDER` 是什么，Agent 都会自动使用内置 Mock Planner，便于本地开发、测试和流程演示，但不会产生真实 AI 规划能力。
+`LLM_PROVIDER` 为 `mock`（或未设置）时，Agent 使用内置 Mock Planner，便于本地开发、测试和流程演示；设置为真实 Provider 后，必须同时配置 `LLM_API_KEY` 和 `LLM_MODEL_NAME`，否则会直接返回配置错误。
 
 启用真实模型时设置：
 
 ```text
-LLM_PROVIDER=openai
+LLM_PROVIDER=modelscope
+LLM_BASE_URL=https://api-inference.modelscope.cn/v1
 LLM_API_KEY=sk-xxx
-LLM_MODEL_NAME=gpt-4o-mini
+LLM_MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
 ```
 
 内置默认接口：
@@ -305,9 +306,10 @@ LLM_MODEL_NAME=gpt-4o-mini
 | --- | --- |
 | `openai` | `https://api.openai.com/v1/chat/completions` |
 | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` |
+| `modelscope` | `https://api-inference.modelscope.cn/v1/chat/completions` |
 | `deepseek` | `https://api.deepseek.com/chat/completions` |
 
-也可以通过 `LLM_BASE_URL` 覆盖为其他兼容 OpenAI Chat Completions 的服务。
+也可以通过 `LLM_BASE_URL` 覆盖为其他兼容 OpenAI Chat Completions 的服务；填写根地址（如 `.../v1`）时，程序会自动补全 `/chat/completions`。
 
 ## 数据库与迁移
 
@@ -394,7 +396,7 @@ npx next build
 
 | 变量 | 示例 | 说明 |
 | --- | --- | --- |
-| `LLM_PROVIDER` | `openai` / `dashscope` / `deepseek` | 模型服务商 |
+| `LLM_PROVIDER` | `openai` / `dashscope` / `deepseek` / `modelscope` | 模型服务商 |
 | `LLM_API_KEY` | `sk-...` | 服务商 API Key |
 | `LLM_MODEL_NAME` | `gpt-4o-mini` 等 | 模型名称 |
 
@@ -406,7 +408,7 @@ npx next build
 - Vercel 卡在 `Installing dependencies...`：检查 `package-lock.json` 是否包含 `registry.npmmirror.com`，项目根目录 `.npmrc` 已固定为 `registry.npmjs.org`。
 - Vercel 报 `EBADPLATFORM @embedded-postgres/windows-x64`：不要把 Windows 专用二进制加入 `devDependencies`，`embedded-postgres` 会通过 `optionalDependencies` 自动选择平台包。
 - Vercel 报 `P1001` 且地址是 `db.<project-ref>.supabase.co:5432`：这是 Supabase IPv6-only 直连，Vercel 无法访问；`DIRECT_URL` 应使用 Session pooler（5432 + `?pgbouncer=true`）。
-- Agent 没有真实 AI 能力：检查 `LLM_PROVIDER`、`LLM_API_KEY`、`LLM_MODEL_NAME` 是否配置并已重新部署。
+- Agent 没有真实 AI 能力：检查 `LLM_PROVIDER`、`LLM_API_KEY`、`LLM_MODEL_NAME` 是否配置并已重新部署。`LLM_API_KEY` 不能填写接口地址，`LLM_MODEL_NAME` 不能是 `planner-agent-mock`。
 
 ## 开源与贡献
 

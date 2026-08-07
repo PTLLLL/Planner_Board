@@ -99,7 +99,7 @@ export async function runAgentWithContext(
       }
       failureReason = validation.failureReason ?? "AGENT_OUTPUT_INVALID";
     } catch (error) {
-      failureReason = error instanceof AppError ? error.code : "AGENT_OUTPUT_INVALID";
+      failureReason = error instanceof AppError ? error.message : "模型输出无效";
       if (attempt === 1) break;
     }
   }
