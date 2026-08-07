@@ -121,4 +121,6 @@ npx prisma db seed
 
 ## 9. Vercel 安装依赖卡住
 
-如果构建日志停在 `Installing dependencies...`，检查 `package-lock.json` 是否使用了 `registry.npmmirror.com`。Vercel 在美国机房访问该镜像可能很慢或失败，应改为 `https://registry.npmjs.org/`。项目根目录的 `.npmrc` 已固定为 npmjs registry。
+如果构建日志停在 `Installing dependencies...`，检查 `package-lock.json` 是否使用了 `registry.npmmirror.com`。Vercel 在美国机房访问该镜像可能很慢或失败，应改为 `https://registry.npmjs.org/`。项目根目录的 .npmrc 已固定为 npmjs registry。
+
+如果 Vercel 报 EBADPLATFORM @embedded-postgres/windows-x64，说明 Windows 专用二进制被写进了 devDependencies；应删除该直接依赖，让 embedded-postgres 通过 optionalDependencies 自动选择当前平台包。
