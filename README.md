@@ -9,6 +9,21 @@ Planner Agent 是一个目标驱动的可控 AI 日程规划 Agent，基于 `doc
 - Redis 可选（本地未配置时自动降级为内存限流/锁）
 - LLM Provider 可插拔，未配置密钥时使用内置 Mock Planner 完成全链路开发与评估
 
+
+## 生产环境说明
+
+当前线上版本（Vercel + Supabase）未配置真实 LLM，`LLM_PROVIDER` 默认为 `mock`，所以 Agent 的智能规划、对话生成等功能只走内置 Mock，不能执行真实 AI 日程规划。
+
+如需启用真实 Agent 能力，请在 Vercel 环境变量中配置：
+
+| 变量 | 示例 | 说明 |
+| --- | --- | --- |
+| `LLM_PROVIDER` | `openai` / `dashscope` / `deepseek` | 模型服务商 |
+| `LLM_API_KEY` | `sk-...` | 服务商 API Key |
+| `LLM_MODEL_NAME` | `gpt-4o-mini` 等 | 模型名称 |
+
+配置完成后在 Vercel 重新 Deploy。注册登录、目标、任务、日历、评估等基础功能不依赖 LLM，可以正常使用。
+
 ## 本地启动
 
 ```bash
