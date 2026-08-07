@@ -44,6 +44,7 @@ export default function CalendarPage() {
     queryKey: ["calendar", month.getFullYear(), month.getMonth(), fromDate, toDate],
     queryFn: () =>
       apiFetch<TaskItem[]>(`/api/tasks?fromDate=${fromDate}&toDate=${toDate}`),
+    staleTime: 60_000,
   });
 
   const grouped = useMemo(() => {
@@ -111,7 +112,7 @@ export default function CalendarPage() {
               <ListTodo className="h-4 w-4" />
             </span>
           </div>
-          <span className="metric-value">{tasks.isLoading ? "…" : monthTaskCount}</span>
+          <span className="metric-value">{tasks.isLoading || tasks.isPlaceholderData ? "…" : monthTaskCount}</span>
           <p className="mt-1 text-xs text-slate-400">当前月份任务总数</p>
         </div>
         <div className="metric-card fade-up">
@@ -121,7 +122,7 @@ export default function CalendarPage() {
               <CalendarDays className="h-4 w-4" />
             </span>
           </div>
-          <span className="metric-value">{tasks.isLoading ? "…" : taskDays}</span>
+          <span className="metric-value">{tasks.isLoading || tasks.isPlaceholderData ? "…" : taskDays}</span>
           <p className="mt-1 text-xs text-slate-400">已排布任务的日期数</p>
         </div>
         <div className="metric-card fade-up">
@@ -144,7 +145,7 @@ export default function CalendarPage() {
           </div>
           <Badge className="soft-badge-blue border-0">
             <CalendarDays className="h-3 w-3" />
-            {format(month, "yyyy-MM")}
+            {tasks.isFetching ? "同步中" : format(month, "yyyy-MM")}
           </Badge>
         </div>
         <div className="panel-card-body">
@@ -157,7 +158,7 @@ export default function CalendarPage() {
                   <span key={day}>{day}</span>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5 pt-3">
+              <div className={cn("grid grid-cols-7 gap-1.5 pt-3 transition-opacity duration-150", tasks.isPlaceholderData && "opacity-60")}>
                 {days.map((day) => {
                   const key = format(day, "yyyy-MM-dd");
                   const dayTasks = grouped.get(key) ?? [];
@@ -167,7 +168,7 @@ export default function CalendarPage() {
                     <button
                       key={key}
                       type="button"
-                      onClick={() => router.push(`/tasks/daily?date=${key}`)}
+                      onClick={() => router.push(`/tasks/daily?date=${key}`, { scroll: false })}
                       className={cn(
                         "group min-h-24 rounded-lg border border-border bg-white p-2 text-left transition-all hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
                         !inMonth && "bg-slate-50/60 text-slate-300",

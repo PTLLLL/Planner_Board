@@ -116,7 +116,7 @@ export default function AgentConsolePage() {
 
         <TabsContent value="runs">
           <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-            <div className="panel-card fade-up">
+            <div className="panel-card">
               <div className="panel-card-header">
                 <div>
                   <h2 className="panel-card-title">Agent Runs</h2>
@@ -257,7 +257,7 @@ export default function AgentConsolePage() {
 
         <TabsContent value="metrics">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="metric-card fade-up">
+            <div className="metric-card">
               <div className="metric-card-topline">
                 <span className="metric-label">运行总数</span>
                 <span className="icon-chip icon-chip-blue">
@@ -267,7 +267,7 @@ export default function AgentConsolePage() {
               <span className="metric-value">{metrics.total}</span>
               <p className="mt-1 text-xs text-slate-400">累计 Agent 运行</p>
             </div>
-            <div className="metric-card fade-up">
+            <div className="metric-card">
               <div className="metric-card-topline">
                 <span className="metric-label">运行成功率</span>
                 <span className="icon-chip icon-chip-teal">
@@ -277,7 +277,7 @@ export default function AgentConsolePage() {
               <span className="metric-value">{Math.round(metrics.jsonSuccessRate * 100)}%</span>
               <p className="mt-1 text-xs text-slate-400">completed / total</p>
             </div>
-            <div className="metric-card fade-up">
+            <div className="metric-card">
               <div className="metric-card-topline">
                 <span className="metric-label">平均耗时</span>
                 <span className="icon-chip icon-chip-amber">
@@ -287,7 +287,7 @@ export default function AgentConsolePage() {
               <span className="metric-value">{metrics.avgLatency} <span className="text-base font-semibold text-slate-400">ms</span></span>
               <p className="mt-1 text-xs text-slate-400">所有运行平均延迟</p>
             </div>
-            <div className="metric-card fade-up">
+            <div className="metric-card">
               <div className="metric-card-topline">
                 <span className="metric-label">建议总数</span>
                 <span className="icon-chip icon-chip-rose">
@@ -297,7 +297,7 @@ export default function AgentConsolePage() {
               <span className="metric-value">{metrics.actionTotal}</span>
               <p className="mt-1 text-xs text-slate-400">生成的动作建议</p>
             </div>
-            <div className="metric-card fade-up">
+            <div className="metric-card">
               <div className="metric-card-topline">
                 <span className="metric-label">建议接受率</span>
                 <span className="icon-chip icon-chip-teal">
@@ -308,7 +308,7 @@ export default function AgentConsolePage() {
               <p className="mt-1 text-xs text-slate-400">executed / total</p>
             </div>
           </div>
-          <div className="panel-card fade-up mt-5">
+          <div className="panel-card mt-5">
             <div className="panel-card-header">
               <div>
                 <h2 className="panel-card-title">运行健康度</h2>

@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Loader2,
   Pencil,
   Plus,
   Trash2,
@@ -68,6 +69,16 @@ export default function DailyTasksPage() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [moveDate, setMoveDate] = useState(date);
+  const [busyTaskIds, setBusyTaskIds] = useState<Set<string>>(() => new Set());
+
+  function setTaskBusy(id: string, busy: boolean) {
+    setBusyTaskIds((current) => {
+      const next = new Set(current);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
 
   const tasks = useQuery({
     queryKey: ["tasks", date],
@@ -125,11 +136,22 @@ export default function DailyTasksPage() {
   }
 
   async function toggle(task: TaskItem) {
+    if (busyTaskIds.has(task.id)) return;
+    const targetDone = !task.isDone;
+    setTaskBusy(task.id, true);
+    queryClient.setQueryData<TaskItem[]>(["tasks", date], (old) =>
+      old?.map((item) =>
+        item.id === task.id ? { ...item, isDone: targetDone } : item,
+      ),
+    );
     try {
-      await postJson(`/api/tasks/${task.id}/${task.isDone ? "uncomplete" : "complete"}`);
+      await postJson(`/api/tasks/${task.id}/${targetDone ? "complete" : "uncomplete"}`);
       await refresh();
     } catch (error) {
+      await queryClient.invalidateQueries({ queryKey: ["tasks", date] });
       toast.error(error instanceof Error ? error.message : "操作失败");
+    } finally {
+      setTaskBusy(task.id, false);
     }
   }
 
@@ -169,7 +191,7 @@ export default function DailyTasksPage() {
           value={date}
           onChange={(event) => {
             if (event.target.value) {
-              router.replace(`/tasks/daily?date=${event.target.value}`);
+              router.replace(`/tasks/daily?date=${event.target.value}`, { scroll: false });
             }
           }}
           className="w-auto"
@@ -326,8 +348,20 @@ export default function DailyTasksPage() {
                           {task.title}
                         </p>
                         <div className="flex shrink-0 gap-1">
-                          <Button variant="ghost" size="icon" aria-label={task.isDone ? "取消完成" : "完成"} onClick={() => toggle(task)}>
-                            {task.isDone ? <Undo2 className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={task.isDone ? "取消完成" : "完成"}
+                            disabled={busyTaskIds.has(task.id)}
+                            onClick={() => toggle(task)}
+                          >
+                            {busyTaskIds.has(task.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : task.isDone ? (
+                              <Undo2 className="h-4 w-4" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
                           </Button>
                           <Button variant="ghost" size="icon" aria-label="编辑" onClick={() => {
                             setEditingId(task.id);

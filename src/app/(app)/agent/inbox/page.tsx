@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,7 @@ import {
   Edit3,
   Inbox,
   ListChecks,
+  Loader2,
   ShieldAlert,
   Sparkles,
   Wrench,
@@ -52,6 +53,7 @@ export default function AgentInboxPage() {
   const [editAction, setEditAction] = useState<AgentAction | null>(null);
   const [editArgs, setEditArgs] = useState("");
   const [selectedSubtasks, setSelectedSubtasks] = useState<Record<string, number[]>>({});
+  const [busyActionId, setBusyActionId] = useState<string | null>(null);
 
   const actions = useQuery({
     queryKey: ["agent-actions", tab],
@@ -61,7 +63,16 @@ export default function AgentInboxPage() {
           ? "/api/agent/actions?status=proposed&pageSize=50"
           : "/api/agent/actions?pageSize=50",
       ),
+    staleTime: 60_000,
   });
+
+  useEffect(() => {
+    void queryClient.prefetchQuery({
+      queryKey: ["agent-actions", "history"],
+      queryFn: () => apiFetch<ActionList>("/api/agent/actions?pageSize=50"),
+      staleTime: 60_000,
+    });
+  }, [queryClient]);
 
   const groups = useMemo(() => {
     const map = new Map<string, AgentAction[]>();
@@ -89,24 +100,49 @@ export default function AgentInboxPage() {
   }
 
   async function approve(action: AgentAction) {
+    if (busyActionId) return;
+    const subtaskIndices =
+      action.tool === "split_task" ? (selectedSubtasks[action.id] ?? []) : undefined;
+    if (action.tool === "split_task" && subtaskIndices?.length === 0) {
+      toast.error("请至少选择一个子任务");
+      return;
+    }
+    setBusyActionId(action.id);
+    queryClient.setQueryData<ActionList>(["agent-actions", "proposed"], (old) =>
+      old
+        ? {
+            ...old,
+            items: old.items.filter((item) => item.id !== action.id),
+            total: Math.max(0, old.total - 1),
+          }
+        : old,
+    );
     try {
-      const subtaskIndices =
-        action.tool === "split_task" ? (selectedSubtasks[action.id] ?? []) : undefined;
-      if (action.tool === "split_task" && subtaskIndices?.length === 0) {
-        toast.error("请至少选择一个子任务");
-        return;
-      }
       await postJson(`/api/agent/actions/${action.id}/approve`, {
         subtaskIndices,
       });
       toast.success("建议已执行");
       await refresh();
     } catch (error) {
+      await queryClient.invalidateQueries({ queryKey: ["agent-actions", "proposed"] });
       toast.error(error instanceof Error ? error.message : "执行失败");
+    } finally {
+      setBusyActionId(null);
     }
   }
 
   async function reject(action: AgentAction) {
+    if (busyActionId) return;
+    setBusyActionId(action.id);
+    queryClient.setQueryData<ActionList>(["agent-actions", "proposed"], (old) =>
+      old
+        ? {
+            ...old,
+            items: old.items.filter((item) => item.id !== action.id),
+            total: Math.max(0, old.total - 1),
+          }
+        : old,
+    );
     try {
       await postJson(`/api/agent/actions/${action.id}/reject`, {
         feedbackType: "rejected",
@@ -114,7 +150,10 @@ export default function AgentInboxPage() {
       toast.success("建议已拒绝");
       await refresh();
     } catch (error) {
+      await queryClient.invalidateQueries({ queryKey: ["agent-actions", "proposed"] });
       toast.error(error instanceof Error ? error.message : "拒绝失败");
+    } finally {
+      setBusyActionId(null);
     }
   }
 
@@ -209,7 +248,7 @@ export default function AgentInboxPage() {
             <div className="space-y-6">
               {groups.map(([runId, items]) => (
                 <section key={runId} className="space-y-3">
-                  <div className="panel-card fade-up overflow-hidden">
+                  <div className="panel-card overflow-hidden">
                     <div className="panel-card-header">
                       <div className="flex min-w-0 items-center gap-3">
                         <span className="icon-chip icon-chip-blue">
@@ -231,7 +270,7 @@ export default function AgentInboxPage() {
                   </div>
                   <div className="grid gap-3 xl:grid-cols-2">
                     {items.map((action) => (
-                      <Card key={action.id} className="fade-up overflow-hidden">
+                      <Card key={action.id} className="overflow-hidden">
                         <CardHeader className="border-b border-slate-100">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-start gap-3">
@@ -305,8 +344,12 @@ export default function AgentInboxPage() {
 
                           {action.status === "proposed" ? (
                             <div className="mt-4 flex flex-wrap gap-2">
-                              <Button size="sm" onClick={() => approve(action)}>
-                                <Check className="h-3.5 w-3.5" />
+                              <Button size="sm" onClick={() => approve(action)} disabled={busyActionId === action.id}>
+                                {busyActionId === action.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
                                 接受
                               </Button>
                               {["create_task", "update_task", "move_task"].includes(action.tool) ? (
@@ -315,8 +358,17 @@ export default function AgentInboxPage() {
                                   编辑并接受
                                 </Button>
                               ) : null}
-                              <Button size="sm" variant="ghost" onClick={() => reject(action)}>
-                                <X className="h-3.5 w-3.5" />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => reject(action)}
+                                disabled={busyActionId === action.id}
+                              >
+                                {busyActionId === action.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <X className="h-3.5 w-3.5" />
+                                )}
                                 拒绝
                               </Button>
                             </div>

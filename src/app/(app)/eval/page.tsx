@@ -74,6 +74,7 @@ export default function EvalDashboardPage() {
       apiFetch<{ items: EvalCase[]; total: number }>(
         `/api/eval/cases?pageSize=100${category ? `&category=${category}` : ""}`,
       ),
+    staleTime: 60_000,
   });
   const results = useQuery({
     queryKey: ["eval-results", category],
@@ -81,6 +82,7 @@ export default function EvalDashboardPage() {
       apiFetch<{ items: EvalResult[]; total: number }>(
         `/api/eval/results?pageSize=100${category ? `&category=${category}` : ""}`,
       ),
+    staleTime: 60_000,
   });
 
   async function runEvaluation() {
@@ -191,7 +193,7 @@ export default function EvalDashboardPage() {
             {cases.isLoading ? (
               <Skeleton className="h-64" />
             ) : (
-              <Table>
+              <Table className={cn("data-table transition-opacity duration-150", cases.isFetching && "opacity-70")}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>名称</TableHead>
@@ -234,7 +236,7 @@ export default function EvalDashboardPage() {
             {results.isLoading ? (
               <Skeleton className="h-64" />
             ) : (
-              <Table>
+              <Table className={cn("data-table transition-opacity duration-150", results.isFetching && "opacity-70")}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>用例</TableHead>

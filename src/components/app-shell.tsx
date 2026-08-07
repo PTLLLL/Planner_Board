@@ -16,7 +16,7 @@ import {
   Target,
   TerminalSquare,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { apiFetch, postJson } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,26 @@ const mobileNav = [...nav, ...secondaryNav];
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [navigating, setNavigating] = useState(false);
+  const navTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    setNavigating(false);
+  }, [pathname]);
+
+  useEffect(
+    () => () => {
+      if (navTimer.current) window.clearTimeout(navTimer.current);
+    },
+    [],
+  );
+
+  function handleNavClick(href: string) {
+    if (href === pathname) return;
+    setNavigating(true);
+    if (navTimer.current) window.clearTimeout(navTimer.current);
+    navTimer.current = window.setTimeout(() => setNavigating(false), 2500);
+  }
 
   const pending = useQuery({
     queryKey: ["nav-pending"],
@@ -77,8 +97,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      {navigating ? (
+        <div
+          aria-hidden="true"
+          className="fixed inset-x-0 top-0 z-[70] h-0.5 overflow-hidden bg-blue-100/70"
+        >
+          <div className="h-full w-1/2 animate-pulse bg-blue-600" />
+        </div>
+      ) : null}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[264px] flex-col overflow-y-auto border-r border-border bg-card px-3 py-4 lg:flex">
-        <Link href="/dashboard" className="mb-6 flex items-center gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-slate-50">
+        <Link
+          href="/dashboard"
+          onClick={() => handleNavClick("/dashboard")}
+          onPointerEnter={() => router.prefetch("/dashboard")}
+          className="mb-6 flex items-center gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-slate-50"
+        >
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-teal-500 text-white shadow-sm">
             <Target className="h-5 w-5" />
           </span>
@@ -97,6 +130,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => handleNavClick(item.href)}
+                onPointerEnter={() => router.prefetch(item.href)}
                 className={cn("nav-item", active && "nav-item-active")}
               >
                 <span className="nav-icon">
@@ -123,6 +158,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => handleNavClick(item.href)}
+                onPointerEnter={() => router.prefetch(item.href)}
                 className={cn("nav-item", active && "nav-item-active")}
               >
                 <span className="nav-icon">
@@ -153,7 +190,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="lg:pl-[264px]">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-white/90 px-4 backdrop-blur lg:hidden">
-          <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+          <Link
+            href="/dashboard"
+            onClick={() => handleNavClick("/dashboard")}
+            onPointerEnter={() => router.prefetch("/dashboard")}
+            className="flex min-w-0 items-center gap-2"
+          >
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-teal-500 text-white shadow-sm">
               <Target className="h-4 w-4" />
             </span>
@@ -164,6 +206,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 href="/agent/inbox"
                 aria-label="待确认建议"
+                onClick={() => handleNavClick("/agent/inbox")}
+                onPointerEnter={() => router.prefetch("/agent/inbox")}
                 className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
               >
                 <Inbox className="h-[18px] w-[18px]" />
@@ -175,6 +219,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               href="/settings"
               aria-label="设置"
+              onClick={() => handleNavClick("/settings")}
+              onPointerEnter={() => router.prefetch("/settings")}
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <Settings className="h-[18px] w-[18px]" />
@@ -202,6 +248,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => handleNavClick(item.href)}
+                  onPointerEnter={() => router.prefetch(item.href)}
                   className={cn(
                     "flex min-w-[64px] flex-1 flex-col items-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] font-medium transition-colors",
                     active

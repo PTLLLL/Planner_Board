@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -50,7 +50,18 @@ export default function GoalsPage() {
   const goals = useQuery({
     queryKey: ["goals", status],
     queryFn: () => apiFetch<GoalItem[]>(`/api/goals?status=${status}`),
+    staleTime: 60_000,
   });
+
+  useEffect(() => {
+    for (const nextStatus of ["active", "completed", "archived"] as const) {
+      void queryClient.prefetchQuery({
+        queryKey: ["goals", nextStatus],
+        queryFn: () => apiFetch<GoalItem[]>(`/api/goals?status=${nextStatus}`),
+        staleTime: 60_000,
+      });
+    }
+  }, [queryClient]);
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["goals"] });
@@ -180,7 +191,7 @@ export default function GoalsPage() {
               <Skeleton className="h-44" />
             ) : goals.data?.length ? (
               goals.data.map((goal) => (
-                <Card key={goal.id} className="fade-up overflow-hidden">
+                <Card key={goal.id} className="overflow-hidden">
                   <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-slate-50/90 to-blue-50/40">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
