@@ -24,7 +24,7 @@ Planner Agent 使用 Next.js 作为应用层，Prisma 连接 PostgreSQL。生产
 | 变量 | 示例 / 说明 |
 | --- | --- |
 | `DATABASE_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`，事务连接池 |
-| `DIRECT_URL` | `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`，迁移直连 |
+| `DIRECT_URL` | `postgresql://postgres.<project-ref>:<<password>>@aws-0-<region>.pooler.supabase.com:5432/postgres`，迁移直连 |
 | `APP_BASE_URL` | `https://<your-project>.vercel.app` |
 | `SESSION_JWT_SECRET` | 32 字节随机值，必填 |
 | `SESSION_COOKIE_NAME` | `planner_session` |
@@ -118,3 +118,7 @@ npx prisma db seed
 - 迁移失败：确认 `DIRECT_URL` 是 Supabase 的直连地址（不是 pooler），数据库密码正确。
 - 登录后立即退出：确认 `SESSION_JWT_SECRET` 已设置为随机密钥，且 Production / Preview 环境一致。
 - 数据库连接过多：确认 `DATABASE_URL` 使用 transaction pooler，而不是直连。
+
+## 9. Vercel 安装依赖卡住
+
+如果构建日志停在 `Installing dependencies...`，检查 `package-lock.json` 是否使用了 `registry.npmmirror.com`。Vercel 在美国机房访问该镜像可能很慢或失败，应改为 `https://registry.npmjs.org/`。项目根目录的 `.npmrc` 已固定为 npmjs registry。
